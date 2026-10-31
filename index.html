@@ -131,6 +131,11 @@ function load(){
   try{ const d = JSON.parse(localStorage.getItem(KEY)); if(d && d.rounds) return d; }catch(e){}
   return {rounds:[], courses:{}, people:[]};
 }
+/* 削除したラウンドは30日間「削除したラウンド」に残し、元に戻せるようにする */
+const TRASH_DAYS = 30;
+db.rounds = db.rounds.filter(r => !r.deletedAt || Date.now() - r.deletedAt < TRASH_DAYS*864e5);
+const alive = () => db.rounds.filter(r=>!r.deletedAt);
+const trashed = () => db.rounds.filter(r=>r.deletedAt).sort((a,b)=>b.deletedAt-a.deletedAt);
 let saveWarned = false;
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(db)); }
@@ -142,7 +147,8 @@ const STATE_KEY = 'golfScore.state';
 let state = {screen:'home', id:null, hole:0};
 try{
   const s = JSON.parse(localStorage.getItem(STATE_KEY));
-  if(s && (s.screen==='home' || db.rounds.some(r=>r.id===s.id))) state = Object.assign(state, s, s.screen==='help'?{screen:'home'}:{});
+  if(s && (s.screen==='home' || s.screen==='trash' || alive().some(r=>r.id===s.id)))
+    state = Object.assign(state, s, (s.screen==='help'||s.screen==='confirmDel')?{screen:'home'}:{});
 }catch(e){}
 function saveState(){ try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }catch(e){} }
 /* 長く使わなくても消されにくくするお願い（対応しているブラウザのみ） */
@@ -188,13 +194,51 @@ const WIND = ['なし','弱い','強い'];
 
 /* ===== 画面 ===== */
 function render(){
-  const f = {home, setup, hole, card, help}[state.screen];
+  const f = {home, setup, hole, card, help, confirmDel, trash}[state.screen];
   $('#app').innerHTML = f();
   bind();
 }
 
+/* 一覧・確認画面で使う、ラウンド1件分の中身 */
+function roundInner(r){
+  const s=stats(r);
+  return `<div class="l"><div class="d">${esc(fmtDate(r.date))} ${r.weather?esc(WEATHER.find(w=>w[0]===r.weather)?.[1]||''):''}</div>
+    <div class="c">${esc(r.course||'(コース名なし)')}</div>
+    <div class="d">${r.companions.filter(Boolean).length? '同伴：'+esc(r.companions.filter(Boolean).join('・')):''}</div></div>
+    <div class="s">${s.done?s.score:'—'}<small>${s.done===18?diffText(s.diff):s.done+'/18ホール'}</small></div>`;
+}
+
+function confirmDel(){
+  const r=cur();
+  return `
+  <header class="bar"><h1 style="text-align:center">削除の確認</h1></header>
+  <main>
+    <p style="font-size:20px;font-weight:900;margin:8px 0">このラウンドを削除しますか？</p>
+    <div class="round" style="border-color:var(--red)">${roundInner(r)}</div>
+    <p class="hint">削除しても <b>${TRASH_DAYS}日間</b> は、最初の画面の一番下「削除したラウンド」から元に戻せます。${TRASH_DAYS}日たつと完全に消えます。</p>
+    <button class="btn" data-act="cancelDel">やめる（削除しない）</button>
+    <div style="height:56px"></div>
+    <button class="btn danger" data-act="doDel">削除する</button>
+  </main>`;
+}
+
+function trash(){
+  const rs=trashed();
+  return `
+  <header class="bar"><button class="hbtn" data-act="home">← 戻る</button><h1>削除したラウンド</h1></header>
+  <main>
+    <p class="hint">削除してから ${TRASH_DAYS}日間 はここに残ります。「元に戻す」を押すと、一覧に戻ります。</p>
+    ${rs.length? rs.map(r=>{ const left=Math.max(1, TRASH_DAYS-Math.floor((Date.now()-r.deletedAt)/864e5));
+      return `<div class="round" style="flex-wrap:wrap">${roundInner(r)}
+        <div style="width:100%;display:flex;align-items:center;gap:10px">
+          <span style="flex:1;font-size:14px;font-weight:800">あと${left}日で完全に消えます</span>
+          <button class="btn sub" data-restore="${r.id}" style="width:auto;min-height:48px;padding:8px 16px;margin:0;font-size:17px">元に戻す</button>
+        </div></div>`;}).join('') : '<p class="empty">削除したラウンドはありません。</p>'}
+  </main>`;
+}
+
 function home(){
-  const rs = [...db.rounds].sort((a,b)=> (b.date||'').localeCompare(a.date||'') || b.updated-a.updated);
+  const rs = alive().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || b.updated-a.updated);
   const best = rs.filter(r=>stats(r).done===18).map(r=>stats(r).score);
   return `
   <header class="bar"><h1>⛳ ゴルフ スコア表</h1><button class="hbtn" data-go="help">使い方</button></header>
@@ -205,18 +249,16 @@ function home(){
       <div class="tile"><b>${(best.reduce((a,b)=>a+b,0)/best.length).toFixed(1)}</b><span>平均スコア</span></div>
       <div class="tile"><b>${best.length}</b><span>18ホール回った回数</span></div></div>`:''}
     <h2>これまでのラウンド</h2>
-    ${rs.length? rs.map(r=>{ const s=stats(r);
-      return `<button class="round" data-open="${r.id}">
-        <div class="l"><div class="d">${esc(fmtDate(r.date))} ${r.weather?esc(WEATHER.find(w=>w[0]===r.weather)?.[1]||''):''}</div>
-        <div class="c">${esc(r.course||'(コース名なし)')}</div>
-        <div class="d">${r.companions.filter(Boolean).length? '同伴：'+esc(r.companions.filter(Boolean).join('・')):''}</div></div>
-        <div class="s">${s.done?s.score:'—'}<small>${s.done===18?diffText(s.diff):s.done+'/18ホール'}</small></div>
-      </button>`;}).join('') : '<p class="empty">まだ記録がありません。上の緑のボタンから始めましょう。</p>'}
+    ${rs.length? rs.map(r=>`<button class="round" data-open="${r.id}">${roundInner(r)}</button>`).join('')
+      : '<p class="empty">まだ記録がありません。上の緑のボタンから始めましょう。</p>'}
     <h2>バックアップ</h2>
     <p class="hint">記録はこのスマホの中だけに保存されます。iPhoneはホーム画面に追加して使うと消えにくくなります。機種変更に備えて、ときどきバックアップを保存してください。</p>
     <button class="btn sub" data-act="export">バックアップを保存する</button>
     <button class="btn sub" data-act="import">バックアップから戻す</button>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <h2>削除したラウンド</h2>
+    <p class="hint">まちがえて削除しても、${TRASH_DAYS}日間はここから元に戻せます。</p>
+    <button class="btn sub" data-go-trash="1">削除したラウンドを見る（${trashed().length}件）</button>
   </main>`;
 }
 
@@ -398,6 +440,8 @@ function bind(){
     const d = b.dataset, r = cur();
     if(d.go){ helpReturn = state.screen; go(d.go); return; }
     if(d.open){ go('card',{id:d.open}); return; }
+    if(d.goTrash){ go('trash'); return; }
+    if(d.restore){ const t=db.rounds.find(x=>x.id===d.restore); delete t.deletedAt; touch(t); toast('元に戻しました'); rerenderKeep(); return; }
     if(d.jump!=null){ go('hole',{hole:+d.jump}); return; }
     if(d.edit!=null){ go('hole',{hole:order(r).indexOf(+d.edit)}); return; }
     if(d.weather){ r.weather = r.weather===d.weather?'':d.weather; keepSetup(); return; }
@@ -421,7 +465,9 @@ function bind(){
     else if(a==='resume') go('hole',{hole:firstEmpty(r)});
     else if(a==='edit') go('setup',{isNew:false});
     else if(a==='clearHole'){ if(confirm('このホールの ① ② ③ の入力を消します。よろしいですか？')){ h.on=null; h.putts=null; h.pen=0; touch(r); rerenderKeep(); } }
-    else if(a==='delete'){ if(confirm(`${fmtDate(r.date)} ${r.course||''} の記録を削除します。\n元に戻せません。よろしいですか？`)){ db.rounds=db.rounds.filter(x=>x!==r); save(); toast('削除しました'); go('home'); } }
+    else if(a==='delete') go('confirmDel');
+    else if(a==='cancelDel') go('card');
+    else if(a==='doDel'){ r.deletedAt=Date.now(); save(); go('home',{id:null}); toast(`削除しました（${TRASH_DAYS}日間は元に戻せます）`); }
     else if(a==='share') share(r);
     else if(a==='export') exportData();
     else if(a==='import') $('#importFile').click();
