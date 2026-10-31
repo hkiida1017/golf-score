@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B4F2A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ゴルフスコア">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-512.png">
+<title>ゴルフ スコア表</title>
+<style>
+/* 日なたでも見やすいように：白地に濃い文字、はっきりした濃い緑。薄いグレー文字は使わない */
+:root{
+  --g-dark:#0B4F2A;   /* 見出し・選択中 */
+  --g:#13703A;        /* ボタン */
+  --g-pale:#E4F2E7;   /* 区切りの背景 */
+  --ink:#111;
+  --line:#2B2B2B;
+  --red:#B71C1C;      /* バーディ以上 */
+  --blue:#0D3E9C;     /* ボギー */
+  --warn:#8A4B00;     /* 注意 */
+  --bg:#FFFFFF;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,sans-serif;
+  font-size:18px;line-height:1.5;font-weight:500}
+button,input,select{font:inherit;color:inherit}
+header.bar{position:sticky;top:0;z-index:5;background:var(--g-dark);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;display:flex;align-items:center;gap:8px;min-height:60px}
+header.bar h1{font-size:21px;margin:0;flex:1;font-weight:800;letter-spacing:.02em}
+header.bar .hbtn{background:#fff;color:var(--g-dark);border:0;border-radius:10px;padding:8px 12px;font-weight:800;font-size:16px;min-height:44px}
+main{padding:14px 14px 120px;max-width:640px;margin:0 auto}
+h2{font-size:19px;margin:22px 0 8px;padding:6px 10px;background:var(--g-pale);border-left:6px solid var(--g-dark);border-radius:4px;font-weight:800}
+.hint{font-size:15px;color:#222;margin:2px 0 8px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:16px;font-size:20px;font-weight:800;
+  background:var(--g);color:#fff;min-height:60px;margin:10px 0;box-shadow:0 3px 0 #06381D}
+.btn:active{transform:translateY(2px);box-shadow:none}
+.btn.sub{background:#fff;color:var(--g-dark);border:3px solid var(--g-dark);box-shadow:none}
+.btn.danger{background:#fff;color:var(--red);border:3px solid var(--red);box-shadow:none;font-size:17px;min-height:50px}
+.field{margin:8px 0 14px}
+.field label{display:block;font-weight:800;margin-bottom:4px}
+.field input{width:100%;padding:12px;border:3px solid var(--line);border-radius:10px;font-size:19px;background:#fff;min-height:54px}
+.field input:focus{outline:4px solid #F2C300;outline-offset:1px}
+.chips{display:grid;gap:8px}
+.chips.c2{grid-template-columns:repeat(2,1fr)}
+.chips.c3{grid-template-columns:repeat(3,1fr)}
+.chips.c4{grid-template-columns:repeat(4,1fr)}
+.chips.c6{grid-template-columns:repeat(6,1fr)}
+.chip{border:3px solid var(--line);background:#fff;border-radius:12px;min-height:56px;font-size:21px;font-weight:800;padding:4px 2px}
+.chip small{display:block;font-size:13px;font-weight:700}
+.chip.on{background:var(--g-dark);border-color:var(--g-dark);color:#fff;box-shadow:inset 0 0 0 3px #fff}
+/* ホールの見出し */
+.holehead{display:flex;align-items:baseline;gap:10px;margin-top:4px}
+.holehead .no{font-size:40px;font-weight:900;color:var(--g-dark);line-height:1}
+.holehead .tot{margin-left:auto;font-size:16px;font-weight:800;text-align:right}
+.strip{display:flex;gap:6px;overflow-x:auto;padding:6px 2px 10px;margin:0 -4px;scrollbar-width:none}
+.strip button{flex:0 0 46px;height:52px;border:2px solid var(--line);border-radius:10px;background:#fff;font-weight:800;font-size:16px;line-height:1.1;padding:0}
+.strip button small{display:block;font-size:13px}
+.strip button.done{background:var(--g-pale)}
+.strip button.cur{background:var(--g-dark);color:#fff;border-color:var(--g-dark)}
+/* 結果カード */
+.result{border:4px solid var(--g-dark);border-radius:16px;padding:12px 14px;margin:18px 0 8px;background:#fff}
+.result .big{display:flex;align-items:center;gap:14px}
+.result .num{font-size:56px;font-weight:900;line-height:1;min-width:64px;text-align:center}
+.result .name{font-size:26px;font-weight:900}
+.result .diff{font-size:20px;font-weight:800}
+.result .calc{font-size:16px;margin-top:6px;font-weight:700}
+.result .tags{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:15px;font-weight:800;padding:4px 10px;border-radius:20px;border:2px solid}
+.tag.good{color:#fff;background:var(--g);border-color:var(--g)}
+.tag.warn{color:var(--warn);border-color:var(--warn);background:#FFF6E5}
+.cRed{color:var(--red)} .cBlue{color:var(--blue)} .cInk{color:var(--ink)}
+.empty{color:#333;font-size:18px;font-weight:700}
+/* 罰打 */
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper button{width:60px;height:56px;border-radius:12px;border:3px solid var(--line);background:#fff;font-size:28px;font-weight:900}
+.stepper .v{font-size:30px;font-weight:900;min-width:40px;text-align:center}
+details{margin:14px 0;border:2px solid var(--line);border-radius:12px;padding:8px 12px}
+details summary{font-weight:800;font-size:17px;padding:6px 0;cursor:pointer}
+/* 下の固定ボタン */
+.foot{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:3px solid var(--g-dark);
+  padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;z-index:6}
+.foot .btn{margin:0}
+.foot .btn.sub{flex:0 0 34%}
+/* スコアカード表 */
+.card{width:100%;border-collapse:collapse;margin:6px 0 4px;table-layout:fixed}
+.card th,.card td{border:2px solid var(--line);text-align:center;padding:5px 0;font-size:16px;font-weight:800}
+.card th{background:var(--g-dark);color:#fff;font-size:14px}
+.card td.lab{background:var(--g-pale);font-size:12px;white-space:nowrap}
+.card col.labc{width:50px}
+.card td.sum{background:var(--g-pale)}
+.mark{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px}
+.mark.bir{border:2.5px solid var(--red);border-radius:50%;color:var(--red)}
+.mark.eag{border:2.5px solid var(--red);border-radius:50%;color:var(--red);box-shadow:0 0 0 2px #fff,0 0 0 4.5px var(--red)}
+.mark.bog{border:2.5px solid var(--blue);color:var(--blue)}
+.mark.dbl{border:2.5px solid var(--ink);box-shadow:0 0 0 2px #fff,0 0 0 4.5px var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.tile{border:3px solid var(--g-dark);border-radius:12px;padding:8px 4px;text-align:center}
+.tile b{display:block;font-size:28px;font-weight:900;line-height:1.2}
+.tile span{font-size:13px;font-weight:800}
+.tile.main{background:var(--g-dark);color:#fff}
+.info{font-size:16px;font-weight:700;border:2px solid var(--line);border-radius:12px;padding:10px 12px}
+.info div{margin:2px 0}
+/* 履歴 */
+.round{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;border:3px solid var(--line);border-radius:14px;padding:12px;margin:8px 0;min-height:70px}
+.round .l{flex:1}
+.round .d{font-size:15px;font-weight:800}
+.round .c{font-size:18px;font-weight:900}
+.round .s{font-size:30px;font-weight:900;color:var(--g-dark);text-align:right;line-height:1.1}
+.round .s small{display:block;font-size:15px;color:var(--ink)}
+.legend{font-size:14px;font-weight:700;display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.legend .mark{width:22px;height:22px;font-size:12px}
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:800;z-index:20}
+.help dt{font-weight:900;margin-top:8px}
+.help dd{margin:0 0 4px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+/* ===== データの保存（このスマホの中だけに保存されます） ===== */
+const KEY = 'golfScore.v1';
+const DEFAULT_PARS = [4,4,3,5,4,4,3,4,5, 4,4,3,5,4,4,3,4,5];
+let db = load();
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(KEY)); if(d && d.rounds) return d; }catch(e){}
+  return {rounds:[], courses:{}, people:[]};
+}
+let saveWarned = false;
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e){ if(!saveWarned){ saveWarned=true; alert('このブラウザでは記録を保存できません（プライベートモードなど）。\n画面を閉じると記録が消えます。'); } }
+}
+
+/* いまの画面（どのラウンドの何番ホールか）も覚えておき、開き直したらそこへ戻る */
+const STATE_KEY = 'golfScore.state';
+let state = {screen:'home', id:null, hole:0};
+try{
+  const s = JSON.parse(localStorage.getItem(STATE_KEY));
+  if(s && (s.screen==='home' || db.rounds.some(r=>r.id===s.id))) state = Object.assign(state, s, s.screen==='help'?{screen:'home'}:{});
+}catch(e){}
+function saveState(){ try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }catch(e){} }
+/* 長く使わなくても消されにくくするお願い（対応しているブラウザのみ） */
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+
+/* ===== 計算 ===== */
+const holeScore = h => (h.on==null || h.putts==null) ? null : h.on + h.putts + (h.pen||0);
+function scoreName(s, par){
+  if(s===1) return 'ホールインワン';
+  const d = s - par;
+  return {'-3':'アルバトロス','-2':'イーグル','-1':'バーディ','0':'パー','1':'ボギー','2':'ダブルボギー','3':'トリプルボギー'}[d] || ('+'+d);
+}
+const diffText = d => d===0 ? '±0' : (d>0 ? '+'+d : String(d));
+function markClass(s, par){
+  const d = s - par;
+  if(d<=-2) return 'eag'; if(d===-1) return 'bir'; if(d===1) return 'bog'; if(d>=2) return 'dbl'; return '';
+}
+const colorClass = d => d<0 ? 'cRed' : (d>0 ? 'cBlue' : 'cInk');
+const isParOn = h => h.on!=null && (h.on + (h.pen||0)) <= h.par - 2;
+function stats(r, from=0, to=18){
+  let score=0, par=0, putts=0, done=0, parOn=0, three=0, pen=0;
+  for(let i=from;i<to;i++){
+    const h=r.holes[i], s=holeScore(h);
+    if(s==null) continue;
+    done++; score+=s; par+=h.par; putts+=h.putts; pen+=(h.pen||0);
+    if(isParOn(h)) parOn++;
+    if(h.putts>=3) three++;
+  }
+  return {score, par, diff:score-par, putts, done, parOn, three, pen};
+}
+const order = r => r.startAt===10 ? [9,10,11,12,13,14,15,16,17,0,1,2,3,4,5,6,7,8] : [...Array(18).keys()];
+
+/* ===== 小道具 ===== */
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = s => document.querySelector(s);
+const today = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+function fmtDate(s){ if(!s) return ''; const [y,m,d]=s.split('-').map(Number); const w='日月火水木金土'[new Date(y,m-1,d).getDay()]; return `${y}年${m}月${d}日(${w})`; }
+const cur = () => db.rounds.find(r=>r.id===state.id);
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1800); }
+function go(screen, extra={}){ Object.assign(state,{screen},extra); saveState(); render(); window.scrollTo(0,0); }
+const WEATHER = [['晴れ','☀️'],['くもり','☁️'],['雨','☂️'],['雪','❄️']];
+const WIND = ['なし','弱い','強い'];
+
+/* ===== 画面 ===== */
+function render(){
+  const f = {home, setup, hole, card, help}[state.screen];
+  $('#app').innerHTML = f();
+  bind();
+}
+
+function home(){
+  const rs = [...db.rounds].sort((a,b)=> (b.date||'').localeCompare(a.date||'') || b.updated-a.updated);
+  const best = rs.filter(r=>stats(r).done===18).map(r=>stats(r).score);
+  return `
+  <header class="bar"><h1>⛳ ゴルフ スコア表</h1><button class="hbtn" data-go="help">使い方</button></header>
+  <main>
+    <button class="btn" data-act="new">＋ 新しいラウンドを始める</button>
+    ${best.length?`<div class="tiles">
+      <div class="tile main"><b>${Math.min(...best)}</b><span>ベストスコア</span></div>
+      <div class="tile"><b>${(best.reduce((a,b)=>a+b,0)/best.length).toFixed(1)}</b><span>平均スコア</span></div>
+      <div class="tile"><b>${best.length}</b><span>18ホール回った回数</span></div></div>`:''}
+    <h2>これまでのラウンド</h2>
+    ${rs.length? rs.map(r=>{ const s=stats(r);
+      return `<button class="round" data-open="${r.id}">
+        <div class="l"><div class="d">${esc(fmtDate(r.date))} ${r.weather?esc(WEATHER.find(w=>w[0]===r.weather)?.[1]||''):''}</div>
+        <div class="c">${esc(r.course||'(コース名なし)')}</div>
+        <div class="d">${r.companions.filter(Boolean).length? '同伴：'+esc(r.companions.filter(Boolean).join('・')):''}</div></div>
+        <div class="s">${s.done?s.score:'—'}<small>${s.done===18?diffText(s.diff):s.done+'/18ホール'}</small></div>
+      </button>`;}).join('') : '<p class="empty">まだ記録がありません。上の緑のボタンから始めましょう。</p>'}
+    <h2>バックアップ</h2>
+    <p class="hint">記録はこのスマホの中だけに保存されます。iPhoneはホーム画面に追加して使うと消えにくくなります。機種変更に備えて、ときどきバックアップを保存してください。</p>
+    <button class="btn sub" data-act="export">バックアップを保存する</button>
+    <button class="btn sub" data-act="import">バックアップから戻す</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </main>`;
+}
+
+function setup(){
+  const r = cur();
+  const people = db.people.map(p=>`<option value="${esc(p)}">`).join('');
+  const courses = Object.keys(db.courses).map(c=>`<option value="${esc(c)}">`).join('');
+  return `
+  <header class="bar"><button class="hbtn" data-act="setupBack">← 戻る</button><h1>ラウンドの情報</h1></header>
+  <main>
+    <div class="field"><label for="f_date">いつ（日付）</label><input type="date" id="f_date" value="${esc(r.date)}"></div>
+    <div class="field"><label for="f_course">どこで（コース名）</label>
+      <input id="f_course" list="dl_course" placeholder="例：○○カントリークラブ" value="${esc(r.course)}">
+      <datalist id="dl_course">${courses}</datalist>
+      <p class="hint">前に回ったコースは、名前を選ぶと各ホールのパーが自動で入ります。</p></div>
+    <div class="field"><label>だれと（同伴者・3人まで）</label>
+      ${[0,1,2].map(i=>`<input class="f_comp" list="dl_people" placeholder="${i+1}人目のお名前" value="${esc(r.companions[i]||'')}" style="margin-bottom:8px">`).join('')}
+      <datalist id="dl_people">${people}</datalist></div>
+    <div class="field"><label>天気</label>
+      <div class="chips c4">${WEATHER.map(([w,i])=>`<button class="chip ${r.weather===w?'on':''}" data-weather="${w}">${i}<small>${w}</small></button>`).join('')}</div></div>
+    <div class="field"><label>風</label>
+      <div class="chips c3">${WIND.map(w=>`<button class="chip ${r.wind===w?'on':''}" data-wind="${w}" style="font-size:19px">${w}</button>`).join('')}</div></div>
+    <div class="field"><label>どちらから回る？</label>
+      <div class="chips c2">
+        <button class="chip ${r.startAt!==10?'on':''}" data-start="1">OUT から<small>1番ホールからスタート</small></button>
+        <button class="chip ${r.startAt===10?'on':''}" data-start="10">IN から<small>10番ホールからスタート</small></button></div></div>
+    <button class="btn" data-act="startRound">${stats(r).done?'保存して入力にもどる':'⛳ スタート！'}</button>
+  </main>`;
+}
+
+function hole(){
+  const r = cur(), seq = order(r), idx = state.hole, i = seq[idx], h = r.holes[i];
+  const s = holeScore(h), t = stats(r);
+  const onChoices = [1,2,3,4,5,6,7,8,9,10,11,12];
+  let res;
+  if(s==null){
+    res = `<div class="result"><p class="empty">① と ② を選ぶと、このホールの成績が出ます。</p></div>`;
+  }else{
+    const d = s - h.par, tags=[];
+    if(isParOn(h)) tags.push('<span class="tag good">パーオン！</span>');
+    if(h.putts===1) tags.push('<span class="tag good">1パット！</span>');
+    if(h.putts===0) tags.push('<span class="tag good">チップイン！</span>');
+    if(h.putts>=3) tags.push('<span class="tag warn">3パット以上</span>');
+    if(h.pen) tags.push(`<span class="tag warn">罰打 ${h.pen}</span>`);
+    res = `<div class="result">
+      <div class="big"><div class="num ${colorClass(d)}"><span class="mark ${markClass(s,h.par)}" style="width:auto;height:auto;padding:0 8px">${s}</span></div>
+        <div><div class="name ${colorClass(d)}">${scoreName(s,h.par)}</div><div class="diff">パー${h.par}に対して ${diffText(d)}</div></div></div>
+      <div class="calc">${h.on}打でオン ＋ ${h.putts}パット${h.pen?` ＋ 罰打${h.pen}`:''} ＝ ${s}打</div>
+      ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
+    </div>`;
+  }
+  const last = idx===17;
+  return `
+  <header class="bar"><button class="hbtn" data-act="toCard">表を見る</button><h1 style="text-align:center">${esc(r.course||'ラウンド')}</h1><button class="hbtn" data-go="help">？</button></header>
+  <main>
+    <div class="strip" id="strip">${seq.map((k,n)=>{ const hs=holeScore(r.holes[k]);
+      return `<button data-jump="${n}" class="${n===idx?'cur':(hs!=null?'done':'')}">${k+1}<small>${hs!=null?hs:'・'}</small></button>`;}).join('')}</div>
+    <div class="holehead"><span class="no">${i+1}番</span><span style="font-weight:800">ホール</span>
+      <span class="tot">ここまで ${t.done}ホール<br><span style="font-size:22px">${t.score}打（${diffText(t.diff)}）</span></span></div>
+
+    <h2>このホールのパー</h2>
+    <div class="chips c3">${[3,4,5].map(p=>`<button class="chip ${h.par===p?'on':''}" data-par="${p}">パー${p}</button>`).join('')}</div>
+
+    <h2>① 何打でグリーンに乗った？</h2>
+    <p class="hint">ティーショットから数えて、グリーンに乗った打数。<br>グリーンの外から直接入ったら、入るまでの打数を選んで ② は「0」。</p>
+    <div class="chips c6">${onChoices.map(n=>`<button class="chip ${h.on===n?'on':''}" data-on="${n}">${n}</button>`).join('')}</div>
+
+    <h2>② グリーンで何パット？</h2>
+    <div class="chips c6">${[0,1,2,3,4,5].map(n=>`<button class="chip ${h.putts===n?'on':''}" data-putts="${n}">${n}</button>`).join('')}</div>
+
+    <details ${h.pen?'open':''}><summary>③ OB・池などの罰打（あれば）</summary>
+      <p class="hint">①には<b>実際にクラブを振った数</b>だけを入れます。ルールで足される罰打は、起きたことのボタンを押すとここに足されます（2回あれば2回押す）。</p>
+      <div class="chips c2">
+        <button class="chip" data-pen="1" style="font-size:17px">OB<small>打ち直し　＋1</small></button>
+        <button class="chip" data-pen="2" style="font-size:17px">前進4打<small>OBで特設ティー　＋2</small></button>
+        <button class="chip" data-pen="1" style="font-size:17px">池に入った<small>赤・黄の杭　＋1</small></button>
+        <button class="chip" data-pen="1" style="font-size:17px">見つからない<small>打てない所も　＋1</small></button>
+      </div>
+      <p class="hint" style="margin-top:12px">罰打の合計（まちがえたら −／＋ で直せます）</p>
+      <div class="stepper"><button data-pen="-1">−</button><span class="v">${h.pen||0}</span><button data-pen="1">＋</button><span>打</span></div>
+    </details>
+
+    ${res}
+    ${s!=null?`<button class="btn danger" data-act="clearHole">このホールの入力を消す</button>`:''}
+  </main>
+  <div class="foot">
+    <button class="btn sub" data-act="prev" ${idx===0?'disabled style="opacity:.4"':''}>◀ 前</button>
+    <button class="btn" data-act="${last?'toCard':'next'}">${last?'結果を見る':'次のホール ▶'}</button>
+  </div>`;
+}
+
+function cardTable(r, from){
+  const idxs=[...Array(9).keys()].map(n=>n+from);
+  const st=stats(r,from,from+9);
+  const label = from===0?'OUT':'IN';
+  const row = (lab, fn, sum) => `<tr><td class="lab">${lab}</td>${idxs.map(fn).join('')}<td class="sum">${sum}</td></tr>`;
+  return `<table class="card"><col class="labc">
+    <tr><th>${label}</th>${idxs.map(i=>`<th>${i+1}</th>`).join('')}<th>計</th></tr>
+    ${row('パー', i=>`<td>${r.holes[i].par}</td>`, idxs.reduce((a,i)=>a+r.holes[i].par,0))}
+    ${row('スコア', i=>{const h=r.holes[i],s=holeScore(h); return `<td data-edit="${i}">${s==null?'':`<span class="mark ${markClass(s,h.par)}">${s}</span>`}</td>`;}, st.done?st.score:'')}
+    ${row('パット', i=>`<td>${r.holes[i].putts??''}</td>`, st.done?st.putts:'')}
+    ${row('オン', i=>{const h=r.holes[i]; return `<td>${h.on==null?'':(isParOn(h)?'◎':h.on)}</td>`;}, st.done?st.parOn:'')}
+  </table>`;
+}
+
+function card(){
+  const r=cur(), s=stats(r), out=stats(r,0,9), inn=stats(r,9,18);
+  const w = WEATHER.find(x=>x[0]===r.weather);
+  return `
+  <header class="bar"><button class="hbtn" data-act="home">← 一覧</button><h1 style="text-align:center">スコアカード</h1></header>
+  <main>
+    <div class="info">
+      <div>📅 ${esc(fmtDate(r.date))}</div>
+      <div>⛳ ${esc(r.course||'(コース名なし)')}</div>
+      <div>👥 ${r.companions.filter(Boolean).length?esc(r.companions.filter(Boolean).join('・')):'(同伴者なし)'}</div>
+      <div>${w?w[1]+' '+w[0]:'天気：未入力'}${r.wind?'／風 '+esc(r.wind):''}</div>
+    </div>
+    <div class="tiles">
+      <div class="tile main"><b>${s.done?s.score:'—'}</b><span>スコア${s.done<18?`（${s.done}H）`:''}</span></div>
+      <div class="tile"><b class="${colorClass(s.diff)}">${s.done?diffText(s.diff):'—'}</b><span>パーとの差</span></div>
+      <div class="tile"><b>${s.done?s.putts:'—'}</b><span>パット合計</span></div>
+      <div class="tile"><b>${s.done?s.parOn:'—'}</b><span>パーオンの数</span></div>
+      <div class="tile"><b>${s.done?(s.putts/s.done).toFixed(1):'—'}</b><span>平均パット</span></div>
+      <div class="tile"><b>${s.done?s.three:'—'}</b><span>3パット以上</span></div>
+    </div>
+    <p class="hint" style="font-weight:800">前半 OUT：${out.done?out.score:'—'}　／　後半 IN：${inn.done?inn.score:'—'}${s.pen?`　／　罰打 合計 ${s.pen}`:''}</p>
+    ${cardTable(r,0)}
+    ${cardTable(r,9)}
+    <div class="legend">
+      <span><span class="mark eag">2</span>イーグル</span><span><span class="mark bir">3</span>バーディ</span>
+      <span><span class="mark">4</span>パー</span><span><span class="mark bog">5</span>ボギー</span>
+      <span><span class="mark dbl">6</span>ダブルボギー以上</span><span>◎＝パーオン</span>
+    </div>
+    <p class="hint">表のスコアの欄をタップすると、そのホールを直せます。</p>
+    <button class="btn" data-act="resume">${s.done<18?'入力を続ける':'ホールごとの入力を見る'}</button>
+    <button class="btn sub" data-act="edit">ラウンドの情報（日付・コース・天気）を直す</button>
+    <button class="btn sub" data-act="share">結果を文字で共有する（LINEなど）</button>
+    <button class="btn danger" data-act="delete">このラウンドを削除する</button>
+  </main>`;
+}
+
+function help(){
+  return `
+  <header class="bar"><button class="hbtn" data-act="back">← 戻る</button><h1>使い方・ことば</h1></header>
+  <main class="help">
+    <h2>入れるのは2つだけ</h2>
+    <p>① <b>何打でグリーンに乗ったか</b>　② <b>グリーンで何パットしたか</b><br>この2つを選ぶと、そのホールのスコアと成績が自動で出ます。<br>スコア ＝ ① ＋ ② （＋ 罰打）</p>
+    <h2>ことばの意味</h2>
+    <dl>
+      <dt>パー</dt><dd>そのホールの「基準の打数」。3・4・5のどれか。カードやティーの看板に書いてあります。</dd>
+      <dt>バーディ／ボギー</dt><dd>パーより1打少ない＝バーディ、1打多い＝ボギー、2打多い＝ダブルボギー。</dd>
+      <dt>パーオン</dt><dd>「パー−2」打以内でグリーンに乗ること（パー4なら2打以内）。2パットで入ればパーになる、上手な人の目安です。</dd>
+      <dt>3パット</dt><dd>グリーンで3回以上打つこと。減らすとスコアが一気に良くなります。</dd>
+      <dt>OB</dt><dd>コースの外にボールが出ること。罰打1打を足して、打ち直します。</dd>
+      <dt>罰打の入れ方（例：パー4）</dt><dd>ティーショットがOB → 打ち直し → 2回目でフェアウェイ → 3回目でグリーン → 2パット。<br>① 振った数＝<b>3</b>、③ <b>OB（＋1）</b>、② <b>2</b> → スコア <b>6</b>（ダブルボギー）。<br>OBの後に「前進4打（特設ティー）」へ行ったときは、③で<b>前進4打（＋2）</b>を押します。</dd>
+      <dt>OUT／IN</dt><dd>前半9ホール（1〜9番）がOUT、後半（10〜18番）がIN。</dd>
+    </dl>
+    <h2>ちょっとしたコツ</h2>
+    <p>・ホールが終わったら、次のティーに歩きながら入力すると忘れません。<br>
+    ・初心者のうちは、スコアよりも「パット数」と「パーオンの数」の変化を見ると上達が分かりやすいです。<br>
+    ・<b>iPhoneは必ず「ホーム画面に追加」してください。</b>Safariの共有ボタン（□に↑）→「ホーム画面に追加」。アプリのように開けて、記録も消えにくくなります（Safariのまま使うと、7日間開かないと記録が消えることがあります）。</p>
+  </main>`;
+}
+
+/* ===== 操作 ===== */
+let helpReturn = 'home';
+function newRound(){
+  const r = {id:Date.now().toString(36), date:today(), course:'', companions:['','',''], weather:'', wind:'', startAt:1,
+    holes:DEFAULT_PARS.map(p=>({par:p,on:null,putts:null,pen:0})), updated:Date.now()};
+  db.rounds.push(r); save();
+  go('setup',{id:r.id, isNew:true});
+}
+function touch(r){ r.updated=Date.now(); save(); }
+
+function bind(){
+  const app = $('#app');
+  app.onclick = e => {
+    const b = e.target.closest('button,td[data-edit]'); if(!b) return;
+    const d = b.dataset, r = cur();
+    if(d.go){ helpReturn = state.screen; go(d.go); return; }
+    if(d.open){ go('card',{id:d.open}); return; }
+    if(d.jump!=null){ go('hole',{hole:+d.jump}); return; }
+    if(d.edit!=null){ go('hole',{hole:order(r).indexOf(+d.edit)}); return; }
+    if(d.weather){ r.weather = r.weather===d.weather?'':d.weather; keepSetup(); return; }
+    if(d.wind){ r.wind = r.wind===d.wind?'':d.wind; keepSetup(); return; }
+    if(d.start){ r.startAt=+d.start; keepSetup(); return; }
+    const h = r && state.screen==='hole' ? r.holes[order(r)[state.hole]] : null;
+    if(d.par){ h.par=+d.par; rememberPars(r); touch(r); rerenderKeep(); return; }
+    if(d.on){ h.on=+d.on; touch(r); rerenderKeep(); return; }
+    if(d.putts!=null){ h.putts=+d.putts; touch(r); rerenderKeep(); return; }
+    if(d.pen){ h.pen=Math.max(0,Math.min(9,(h.pen||0)+ +d.pen)); touch(r); rerenderKeep(); if(+d.pen>0) toast(`罰打 ＋${d.pen}（合計 ${h.pen}）`); return; }
+    const a = d.act;
+    if(a==='new') newRound();
+    else if(a==='home') go('home');
+    else if(a==='back') go(helpReturn);
+    else if(a==='setupBack'){ readSetup(); if(state.isNew && !r.course && !stats(r).done){ db.rounds=db.rounds.filter(x=>x!==r); save(); go('home'); } else go(stats(r).done||!state.isNew?'card':'home'); }
+    else if(a==='startRound'){ readSetup(); applyCoursePars(r); touch(r); const was=state.isNew; state.isNew=false;
+      if(was){ go('hole',{hole:0}); } else go('hole',{hole:firstEmpty(r)}); }
+    else if(a==='next'){ go('hole',{hole:Math.min(17,state.hole+1)}); }
+    else if(a==='prev'){ go('hole',{hole:Math.max(0,state.hole-1)}); }
+    else if(a==='toCard') go('card');
+    else if(a==='resume') go('hole',{hole:firstEmpty(r)});
+    else if(a==='edit') go('setup',{isNew:false});
+    else if(a==='clearHole'){ if(confirm('このホールの ① ② ③ の入力を消します。よろしいですか？')){ h.on=null; h.putts=null; h.pen=0; touch(r); rerenderKeep(); } }
+    else if(a==='delete'){ if(confirm(`${fmtDate(r.date)} ${r.course||''} の記録を削除します。\n元に戻せません。よろしいですか？`)){ db.rounds=db.rounds.filter(x=>x!==r); save(); toast('削除しました'); go('home'); } }
+    else if(a==='share') share(r);
+    else if(a==='export') exportData();
+    else if(a==='import') $('#importFile').click();
+  };
+  const f = $('#importFile'); if(f) f.onchange = importData;
+  /* 文字を1文字打つごとに保存（途中でアプリを切り替えても消えない） */
+  document.querySelectorAll('#f_date,#f_course,.f_comp').forEach(el=>el.oninput = readSetup);
+  const strip = $('#strip .cur'); if(strip) strip.scrollIntoView({inline:'center',block:'nearest'});
+  const c = $('#f_course'); if(c) c.onchange = ()=>{ if(db.courses[c.value.trim()]) toast('このコースのパーを読み込みます'); };
+}
+function firstEmpty(r){ const s=order(r); const k=s.findIndex(i=>holeScore(r.holes[i])==null); return k<0?0:k; }
+function rerenderKeep(){ const y=window.scrollY; render(); window.scrollTo(0,y); }
+function keepSetup(){ readSetup(); rerenderKeep(); }
+function readSetup(){
+  const r=cur(); if(!$('#f_date')) return;
+  r.date=$('#f_date').value; r.course=$('#f_course').value.trim();
+  r.companions=[...document.querySelectorAll('.f_comp')].map(x=>x.value.trim());
+  save();
+}
+function applyCoursePars(r){
+  r.companions.filter(Boolean).forEach(p=>{ if(!db.people.includes(p)) db.people.push(p); });
+  const p = db.courses[r.course];
+  if(p && !stats(r).done) r.holes.forEach((h,i)=>h.par=p[i]);
+  rememberPars(r);
+}
+function rememberPars(r){ if(r.course) db.courses[r.course]=r.holes.map(h=>h.par); }
+
+function share(r){
+  const s=stats(r), out=stats(r,0,9), inn=stats(r,9,18);
+  const text = `⛳ ${fmtDate(r.date)} ${r.course}\n`+
+    (r.companions.filter(Boolean).length?`同伴：${r.companions.filter(Boolean).join('・')}\n`:'')+
+    (r.weather?`天気：${r.weather}${r.wind?'・風'+r.wind:''}\n`:'')+
+    `スコア ${s.score}（${diffText(s.diff)}）OUT ${out.score} / IN ${inn.score}\n`+
+    `パット ${s.putts}／パーオン ${s.parOn}／3パット ${s.three}`;
+  if(navigator.share){ navigator.share({text}).catch(()=>{}); }
+  else if(navigator.clipboard){ navigator.clipboard.writeText(text).then(()=>toast('文字をコピーしました')); }
+  else alert(text);
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(db,null,1)],{type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = `golf-score-backup-${today()}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function importData(e){
+  const file = e.target.files[0]; if(!file) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try{
+      const d = JSON.parse(rd.result); if(!d.rounds) throw 0;
+      const add = d.rounds.filter(x=>!db.rounds.some(y=>y.id===x.id));
+      if(!confirm(`バックアップには ${d.rounds.length} 件の記録があります。\nこのうち、いまのスマホに無い ${add.length} 件を追加します。\n（いまある記録は消えません）よろしいですか？`)) return;
+      db.rounds.push(...add);
+      Object.assign(db.courses, d.courses||{});
+      (d.people||[]).forEach(p=>{ if(!db.people.includes(p)) db.people.push(p); });
+      save(); toast(`${add.length} 件を追加しました`); render();
+    }catch(err){ alert('このファイルは読み込めませんでした。'); }
+  };
+  rd.readAsText(file);
+}
+/* アプリを切り替えた・画面を閉じた瞬間にも念のため保存 */
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ readSetup(); save(); saveState(); } });
+window.addEventListener('pagehide', ()=>{ readSetup(); save(); saveState(); });
+render();
+const sc = $('#strip .cur'); if(sc) sc.scrollIntoView({inline:'center',block:'nearest'});
+</script>
+</body>
+</html>
