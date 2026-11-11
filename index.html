@@ -137,6 +137,7 @@ details summary{font-weight:800;font-size:17px;padding:6px 0;cursor:pointer}
 <script>
 'use strict';
 /* ===== データの保存（このスマホの中だけに保存されます） ===== */
+const APP_VERSION = '2026.11.11-3';
 const KEY = 'golfScore.v1';
 const DEFAULT_PARS = [4,4,3,5,4,4,3,4,5, 4,4,3,5,4,4,3,4,5];
 let db = load();
@@ -276,6 +277,7 @@ function home(){
     <h2>削除したラウンド</h2>
     <p class="hint">まちがえて削除しても、${TRASH_DAYS}日間はここから元に戻せます。</p>
     <button class="btn sub" data-go-trash="1">削除したラウンドを見る（${trashed().length}件）</button>
+    <p class="hint" style="text-align:center;margin-top:18px">アプリの版：${APP_VERSION}</p>
   </main>`;
 }
 
@@ -580,7 +582,16 @@ function importData(e){
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ readSetup(); save(); saveState(); } });
 window.addEventListener('pagehide', ()=>{ readSetup(); save(); saveState(); });
 /* 電波がない所でも開けるようにする */
-if('serviceWorker' in navigator && location.protocol==='https:' || location.hostname==='localhost') navigator.serviceWorker?.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{
+    // iPhoneはアプリを切り替えて戻っても読み込み直さないので、戻ってきたときにも新しい版を確かめる
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) reg.update().catch(()=>{}); });
+  }).catch(()=>{});
+  // 新しい版に入れ替わったら、1回だけ自動で画面を読み込み直す（入力は保存済みなので消えない）
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{ if(hadController && !reloaded){ reloaded=true; location.reload(); } });
+}
 render();
 const sc = $('#strip .cur'); if(sc) sc.scrollIntoView({inline:'center',block:'nearest'});
 </script>
