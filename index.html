@@ -38,6 +38,12 @@ main{padding:14px 14px calc(150px + env(safe-area-inset-bottom));max-width:640px
 .oth{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:12px;padding:8px 10px;margin:8px 0}
 .oth .on{flex:1;min-width:0}.oth .on b{display:block;font-size:19px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.oth .on small{font-size:14px;font-weight:800}
 .oth button{width:56px;height:52px;border-radius:12px;border:3px solid var(--line);background:#fff;font-size:28px;font-weight:900}
+button{touch-action:manipulation}
+html{touch-action:manipulation}
+.oth2{border:2px solid var(--line);border-radius:12px;padding:8px 10px 10px;margin:10px 0}
+.oth2 .on b{font-size:19px;margin-right:8px}.oth2 .on small{font-size:14px;font-weight:800}.oth2 .on{margin-bottom:6px}
+.oth2 .chip{min-height:54px;font-size:20px}.oth2 .chip small{font-size:11px}
+.more{width:100%;margin-top:8px;min-height:44px;border:2px dashed var(--line);border-radius:10px;background:#fff;font-weight:800;font-size:15px}
 .oth .ov{font-size:30px;font-weight:900;min-width:44px;text-align:center}
 .card tr.oth-row td{font-weight:700}.card tr.oth-row td.lab{background:#fff}
 h2{font-size:19px;margin:22px 0 8px;padding:6px 10px;background:var(--g-pale);border-left:6px solid var(--g-dark);border-radius:4px;font-weight:800}
@@ -199,7 +205,7 @@ const today = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.ge
 function fmtDate(s){ if(!s) return ''; const [y,m,d]=s.split('-').map(Number); const w='日月火水木金土'[new Date(y,m-1,d).getDay()]; return `${y}年${m}月${d}日(${w})`; }
 const cur = () => db.rounds.find(r=>r.id===state.id);
 function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1800); }
-function go(screen, extra={}){ Object.assign(state,{screen},extra); saveState(); render(); window.scrollTo(0,0); }
+function go(screen, extra={}){ Object.assign(state,{screen,othMore:{}},extra); saveState(); render(); window.scrollTo(0,0); }
 const WEATHER = [['晴れ','☀️'],['くもり','☁️'],['雨','☂️'],['雪','❄️']];
 const WIND = ['なし','弱い','強い'];
 
@@ -356,13 +362,18 @@ function hole(){
     ${res}
 
     <h2>👥 同じ組の人のスコア（打数）</h2>
-    ${comps.length ? `<p class="hint">＋か−を押すと、パーの数（${h.par}）から始まります。</p>
+    ${comps.length ? `<p class="hint">打数のボタンを<b>1回押すだけ</b>です。まちがえたら別の数を押し直します（同じ数をもう一度押すと取り消し）。</p>
       ${comps.map(({n,k})=>{ const v=h.others?.[k]; const ot=othStats(r,k);
-        return `<div class="oth">
-          <div class="on"><b>${esc(n)}</b><small>${ot.done?`計 ${ot.score}（${diffText(ot.score-ot.par)}）`:'まだ入力なし'}</small></div>
-          <button data-oth="${k}" data-d="-1" aria-label="${esc(n)}さんを1打減らす">−</button>
-          <span class="ov ${v==null?'':colorClass(v-h.par)}">${v==null?'—':v}</span>
-          <button data-oth="${k}" data-d="1" aria-label="${esc(n)}さんを1打増やす">＋</button>
+        const main=[...Array(6).keys()].map(j=>h.par-1+j).filter(x=>x>=1);
+        const extra=[...Array(12).keys()].map(j=>j+1).filter(x=>!main.includes(x));
+        const open=state.othMore?.[k] || (v!=null && !main.includes(v));
+        const lab=x=>{const dd=x-h.par; return dd===0?'パー':(dd>0?'+'+dd:String(dd));};
+        const chip=x=>`<button class="chip ${v===x?'on':''}" data-othv="${k}" data-v="${x}">${x}<small>${lab(x)}</small></button>`;
+        return `<div class="oth2">
+          <div class="on"><b>${esc(n)}</b><small>${v!=null?`このホール ${v}打 ／ `:''}${ot.done?`計 ${ot.score}（${diffText(ot.score-ot.par)}）`:'まだ入力なし'}</small></div>
+          <div class="chips c6">${main.map(chip).join('')}</div>
+          ${open?`<div class="chips c6" style="margin-top:8px">${extra.map(chip).join('')}</div>`
+                :`<button class="more" data-othmore="${k}">ほかの打数（1〜12）を出す</button>`}
         </div>`;}).join('')}`
       : `<p class="hint">「ラウンドの情報」で同伴者の名前を入れると、ここに入力欄が出ます。</p>
          <button class="btn sub" data-act="edit" style="min-height:50px;font-size:17px">同伴者の名前を入れる</button>`}
@@ -482,6 +493,9 @@ function bind(){
     if(d.par){ h.par=+d.par; rememberPars(r); touch(r); rerenderKeep(); return; }
     if(d.on){ h.on=+d.on; touch(r); rerenderKeep(); return; }
     if(d.putts!=null){ h.putts=+d.putts; touch(r); rerenderKeep(); return; }
+    if(d.othv!=null){ h.others = h.others||{}; const v=+d.v;
+      if(h.others[d.othv]===v) delete h.others[d.othv]; else h.others[d.othv]=v; touch(r); rerenderKeep(); return; }
+    if(d.othmore!=null){ state.othMore = Object.assign({}, state.othMore, {[d.othmore]:true}); rerenderKeep(); return; }
     if(d.oth!=null){ h.others = h.others||{}; const v=h.others[d.oth];
       h.others[d.oth] = v==null ? h.par : Math.max(1,Math.min(20, v + +d.d)); touch(r); rerenderKeep(); return; }
     if(d.pen){ h.pen=Math.max(0,Math.min(9,(h.pen||0)+ +d.pen)); touch(r); rerenderKeep(); return; }

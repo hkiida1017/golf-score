@@ -1,6 +1,6 @@
 /* 電波がなくても開けるように、アプリ本体をiPhoneの中に取っておく仕組み。
    開くときはまず取っておいた分をすぐ出し、電波があれば裏で新しい版に入れ替える（次に開いたとき反映）。 */
-const CACHE = 'golf-score-v3';
+const CACHE = 'golf-score-v4';
 const FILES = ['./', './index.html', './apple-touch-icon.png', './icon-512.png', './manifest.json'];
 
 self.addEventListener('install', e => {
